@@ -32,12 +32,12 @@ class geo:
 
     def get_lon_lat_label(self):
         ds = self._obj
-        return ds.geo.get_lon_label(ds), ds.geo.get_lat_label(ds)
+        return ds.geo.get_lon_label(), ds.geo.get_lat_label()
 
     def normalize_longitude(self, lon_label=None, smallest_lon_coord=-180., keep_attrs=False):
         ds = self._obj
         if lon_label is None:
-            lon_label = ds.geo.get_lon_label(ds)
+            lon_label = ds.geo.get_lon_label()
         lon_coords = ds[lon_label]
         aligned_lon_coords = common.longitude.normalize_longitude(lon_coords, smallest_lon_coord=smallest_lon_coord)
         if keep_attrs:
