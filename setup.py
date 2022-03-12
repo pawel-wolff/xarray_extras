@@ -14,7 +14,7 @@ setup(
     install_requires=[
         'numpy',
         'pandas',
-        'xarray',
+        'xarray>=0.19',
         'dask',
         'common',
     ],
