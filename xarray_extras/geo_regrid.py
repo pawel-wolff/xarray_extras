@@ -54,9 +54,9 @@ class geo_regrid:
         # check if longitude is circular
         if longitude_circular is None and len(longitude) >= 2:
             ds_lon_delta = abs(ds_lon[1] - ds_lon[0])
-            longitude_circular = abs(ds_lon_span - 360.) <= tolerance or \
-                                 abs(ds_lon_span + ds_lon_delta - 360.) <= tolerance
-        logger().debug(f'longitude_circular={longitude_circular} for ds={ds.xrx.short_dataset_repr()}')
+            longitude_circular = bool(abs(ds_lon_span - 360.) <= tolerance or \
+                                      abs(ds_lon_span + ds_lon_delta - 360.) <= tolerance)
+            logger().debug(f'longitude_circular={longitude_circular} for ds={ds.xrx.short_dataset_repr()}')
 
         # handle overlapping longitude coordinate if necessary
         longitude_ori = None
