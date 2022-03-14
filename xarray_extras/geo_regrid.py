@@ -1,6 +1,8 @@
 import numpy as np
 import xarray as xr
 
+from common.log import logger
+
 
 @xr.register_dataset_accessor('geo_regrid')
 @xr.register_dataarray_accessor('geo_regrid')
@@ -25,7 +27,7 @@ class geo_regrid:
         (see http://xarray.pydata.org/en/stable/generated/xarray.core.rolling.DatasetCoarsen.html#xarray.core.rolling.DatasetCoarsen
         for an exhaustive list), or 'linear' or 'nearest' for re-sampling
         :param tolerance: float, default=1e-3; a tolerance for checking coordinates alignment, etc.
-        :param longitude_circular: bool, optional; if True then then longitude coordinates are considered as circular
+        :param longitude_circular: bool, optional; if True then then longitude coordinates are considered as circular; if None, automatic check if applied
         :param skipna: bool, optional; default behaviour is to skip NA values if they are of float type; for more see
         http://xarray.pydata.org/en/stable/generated/xarray.core.rolling.DatasetCoarsen.html#xarray.core.rolling.DatasetCoarsen
         :param keep_attrs: bool, optional; If True, the attributes (attrs) will be copied from the original object
@@ -46,6 +48,15 @@ class geo_regrid:
             latitude = target_resol_ds[lat]
         # get labels of longitude and latitude dimension for ds
         lon_label, lat_label = ds.geo.get_lon_lat_label()
+        ds_lon = ds[lon_label]
+        ds_lon_span = abs(ds_lon[-1] - ds_lon[0])
+
+        # check if longitude is circular
+        if longitude_circular is None and len(longitude) >= 2:
+            ds_lon_delta = abs(ds_lon[1] - ds_lon[0])
+            longitude_circular = abs(ds_lon_span - 360.) <= tolerance or \
+                                 abs(ds_lon_span + ds_lon_delta - 360.) <= tolerance
+        logger().debug(f'longitude_circular={longitude_circular} for ds={ds.xrx.short_dataset_repr()}')
 
         # handle overlapping longitude coordinate if necessary
         longitude_ori = None
@@ -55,7 +66,7 @@ class geo_regrid:
                 longitude_ori = longitude
                 longitude = longitude[:-1]
             # remove ds' longitude coordinate which is overlapping mod 360
-            if abs(abs(ds[lon_label][-1] - ds[lon_label][0]) - 360.) <= tolerance:
+            if abs(ds_lon_span - 360.) <= tolerance:
                 ds = ds.isel({lon_label: slice(None, -1)})
 
         # if necessary, align longitude coordinates of ds to the target longitude by normalizing and rolling or sorting
@@ -64,16 +75,16 @@ class geo_regrid:
 
         # duplicate left- and right-most longitude coordinate to facilitate interpolation, if necessary
         if method in ['linear', 'nearest'] and longitude_circular:
-            lon_coord = ds[lon_label].values
+            lon_coord = ds_lon.values
             extended_lon_coord = np.concatenate(([lon_coord[-1]], lon_coord, [lon_coord[0]]))
             extended_lon_coord_normalized = np.array(extended_lon_coord)
             extended_lon_coord_normalized[0] = extended_lon_coord_normalized[0] - 360.
             extended_lon_coord_normalized[-1] = extended_lon_coord_normalized[-1] + 360.
-            lon_attrs = ds[lon_label].attrs
+            lon_attrs = ds_lon.attrs
             ds = ds\
                 .sel({lon_label: extended_lon_coord})\
                 .assign_coords({lon_label: extended_lon_coord_normalized})
-            ds[lon_label].attrs = lon_attrs
+            ds_lon.attrs = lon_attrs
 
         # do regridding
         ds = ds.regrid.regrid({lon_label: longitude, lat_label: latitude}, method=method, tolerance=tolerance,
