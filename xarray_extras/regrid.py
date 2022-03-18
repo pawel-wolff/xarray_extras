@@ -35,7 +35,8 @@ class regrid:
     def __init__(self, xarray_obj):
         self._obj = xarray_obj
 
-    def regrid(self, target_coords, method='mean', tolerance=None, skipna=None, keep_attrs=False, **agg_method_kwargs):
+    def regrid(self, target_coords, method='mean', tolerance=None, skipna=None, keep_attrs=False,
+               keep_ori_dims_order=True, **agg_method_kwargs):
         """
         Regrid coordinates of a dataset (or a data array). Coordinates are assumed to be a center of a grid cell.
         Coarser grids are obtained from regular aggregation; to this end, both the initial and target grids must
@@ -53,6 +54,8 @@ class regrid:
         http://xarray.pydata.org/en/stable/generated/xarray.core.rolling.DatasetCoarsen.html#xarray.core.rolling.DatasetCoarsen
         :param keep_attrs: bool, optional; If True, the attributes (attrs) will be copied from the original object
         to the new one. If False (default), the new object will be returned without attributes.
+        :param keep_ori_dims_order: if True, keep the dataset/dataarray original order of dimensions;
+        if False, impose the dimensions order as the order of targer_coords dict.
         :param agg_method_kwargs: keyword arguments passed to an aggregation method; see
         http://xarray.pydata.org/en/stable/generated/xarray.core.rolling.DatasetCoarsen.html#xarray.core.rolling.DatasetCoarsen
         :return: same type as ds
@@ -63,6 +66,9 @@ class regrid:
         for coord_label in target_coords:
             if coord_label not in ds_dims:
                 raise ValueError(f'{coord_label} not found among ds dimensions: {list(ds_dims)}')
+
+        if keep_ori_dims_order:
+            target_coords = {coord_label: target_coords[coord_label] for coord_label in ds_dims if coord_label in target_coords}
 
         ds = ds.xrx.make_coordinates_increasing(target_coords.keys())
 
@@ -118,6 +124,7 @@ class regrid:
                                  f"check grids or adjust 'tolerance' parameter\n"
                                  f"regridded_ds={regridded_ds}\n"
                                  f"target_coords={target_coord}")
+            # overwrite coordinates
             regridded_ds = regridded_ds.assign_coords({r_dim: target_coords[r_dim]
                                                        for r_dim in set(regridded_ds.dims).intersection(target_coords)})
         return regridded_ds
