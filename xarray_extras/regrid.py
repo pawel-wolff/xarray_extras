@@ -2,7 +2,7 @@ import numpy as np
 import xarray as xr
 
 
-def is_coord_regularly_gridded(coord, abs_err):
+def is_coord_regularly_gridded(coord, abs_err=None):
     """
     Checks if a coordinate variable is regularly gridded (spaced)
     :param coord: a 1-dim array-like
@@ -12,8 +12,21 @@ def is_coord_regularly_gridded(coord, abs_err):
     coord = np.asanyarray(coord)
     if len(coord.shape) != 1:
         raise ValueError(f'coord must be 1-dimensional')
-    err = np.abs(np.diff(coord, n=2))
-    return np.all(err <= abs_err)
+    n, = coord.shape
+    if n < 2:
+        return True
+    d_coord = np.diff(coord)
+    if abs_err is not None:
+        return np.all(np.abs(d_coord - d_coord[0]) <= abs_err)
+    try:
+        eps = np.finfo(coord.dtype).eps
+    except ValueError:
+        # dtype not inexact
+        return np.all(d_coord == d_coord[0])
+    # floating-point
+    abs_coord_plus_1 = np.fabs(coord) + 1.
+    rel_err = 8. * eps * np.maximum(abs_coord_plus_1[1:], abs_coord_plus_1[:-1])
+    return np.all(np.fabs(d_coord - d_coord[0]) <= rel_err)
 
 
 @xr.register_dataset_accessor('regrid')
@@ -22,7 +35,7 @@ class regrid:
     def __init__(self, xarray_obj):
         self._obj = xarray_obj
 
-    def regrid(self, target_coords, method='mean', tolerance=1e-3, skipna=None, keep_attrs=False, **agg_method_kwargs):
+    def regrid(self, target_coords, method='mean', tolerance=None, skipna=None, keep_attrs=False, **agg_method_kwargs):
         """
         Regrid coordinates of a dataset (or a data array). Coordinates are assumed to be a center of a grid cell.
         Coarser grids are obtained from regular aggregation; to this end, both the initial and target grids must
@@ -35,7 +48,7 @@ class regrid:
         :param method: 'mean', 'sum', 'max', 'min', etc.
         (see http://xarray.pydata.org/en/stable/generated/xarray.core.rolling.DatasetCoarsen.html#xarray.core.rolling.DatasetCoarsen
         for an exhaustive list), or 'linear' or 'nearest' for re-sampling
-        :param tolerance: float or numpy.timedelta64; default=1e-3; a tolerance for checking coordinates alignment, etc.
+        :param tolerance: float or numpy.timedelta64 or None; default=None; a tolerance for checking coordinates alignment; if None, no check is applied
         :param skipna: bool, optional; default behaviour is to skip NA values if they are of float type; for more see
         http://xarray.pydata.org/en/stable/generated/xarray.core.rolling.DatasetCoarsen.html#xarray.core.rolling.DatasetCoarsen
         :param keep_attrs: bool, optional; If True, the attributes (attrs) will be copied from the original object
@@ -59,11 +72,11 @@ class regrid:
         else:
             # check if target coordinates are equally spaced
             for coord_label, target_coord in target_coords.items():
-                if not is_coord_regularly_gridded(target_coord, tolerance):
+                if not is_coord_regularly_gridded(target_coord):
                     raise ValueError(f'{coord_label} is not be regularly gridded: {target_coord}')
             # check if coordinates of ds are equally spaced
             for coord_label in target_coords:
-                if not is_coord_regularly_gridded(ds[coord_label], tolerance):
+                if not is_coord_regularly_gridded(ds[coord_label]):
                     raise ValueError(f'ds has {coord_label} coordinate not regularly gridded: {ds[coord_label]}')
 
             # trim the domain of ds to target_coords, if necessary
