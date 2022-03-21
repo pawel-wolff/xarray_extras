@@ -55,8 +55,8 @@ class geo_regrid:
         if longitude_circular is None and len(longitude) >= 2:
             eps = np.finfo(ds_lon.dtype).eps
             ds_lon_delta = abs(ds_lon[1] - ds_lon[0])
-            longitude_circular = bool(abs(ds_lon_span - 360.) <= 4. * 360. * eps or
-                                      abs(ds_lon_span + ds_lon_delta - 360.) <= 4. * 360. * eps)
+            longitude_circular = bool(abs(ds_lon_span - 360.) <= 8. * 360. * eps or
+                                      abs(ds_lon_span + ds_lon_delta - 360.) <= 8. * 360. * eps)
             logger().debug(f'longitude_circular={longitude_circular} for ds={ds.xrx.short_dataset_repr()}')
 
         # handle overlapping target longitude coordinates if necessary
@@ -64,12 +64,12 @@ class geo_regrid:
         if longitude_circular:
             # remove target longitude coordinate which is overlapping mod 360
             eps = np.finfo(longitude.dtype).eps
-            if abs(abs(longitude[-1] - longitude[0]) - 360.) <= 4. * 360. * eps:
+            if abs(abs(longitude[-1] - longitude[0]) - 360.) <= 8. * 360. * eps:
                 longitude_ori = longitude
                 longitude = longitude[:-1]
             # remove ds' longitude coordinate which is overlapping mod 360
             eps = np.finfo(ds_lon.dtype).eps
-            if abs(ds_lon_span - 360.) <= 4. * 360. * eps:
+            if abs(ds_lon_span - 360.) <= 8. * 360. * eps:
                 ds = ds.isel({lon_label: slice(None, -1)})
 
         # if necessary, align longitude coordinates of ds to the target longitude by normalizing and rolling or sorting

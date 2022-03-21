@@ -16,17 +16,15 @@ def is_coord_regularly_gridded(coord, abs_err=None):
     if n < 2:
         return True
     d_coord = np.diff(coord)
-    if abs_err is not None:
-        return np.all(np.abs(d_coord - d_coord[0]) <= abs_err)
-    try:
-        eps = np.finfo(coord.dtype).eps
-    except ValueError:
-        # dtype not inexact
-        return np.all(d_coord == d_coord[0])
-    # floating-point
-    abs_coord_plus_1 = np.fabs(coord) + 1.
-    rel_err = 8. * eps * np.maximum(abs_coord_plus_1[1:], abs_coord_plus_1[:-1])
-    return np.all(np.fabs(d_coord - d_coord[0]) <= rel_err)
+    if abs_err is None:
+        try:
+            eps = np.finfo(coord.dtype).eps
+        except ValueError:
+            # dtype not inexact
+            return np.all(d_coord == d_coord[0])
+        # floating-point
+        abs_err = 4 * eps * np.max(np.fabs(coord))
+    return np.all(np.fabs(d_coord - d_coord[0]) <= 2 * abs_err)
 
 
 @xr.register_dataset_accessor('regrid')
