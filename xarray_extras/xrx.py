@@ -69,6 +69,18 @@ class xrx:
             ds = ds.isel({dim: idx})
         return ds
 
+    def assign_dummy_coords(self, dims=None):
+        ds = self._obj
+        if dims is None:
+            ds_coords = list(ds.coords)
+            dims_with_dummy_coords = [dim for dim in ds.dims if dim not in ds_coords]
+        else:
+            dims_with_dummy_coords = dims
+        if dims_with_dummy_coords:
+            dummy_coords_by_dim = {dim: np.arange(ds.sizes[dim]) for dim in dims_with_dummy_coords}
+            ds = ds.assign_coords(dummy_coords_by_dim)
+        return ds
+
 
 def open_dataset_from_netcdf_with_disk_chunks(url, chunks='auto', **kwargs):
     """

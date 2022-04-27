@@ -34,7 +34,7 @@ class regrid:
         self._obj = xarray_obj
 
     def regrid(self, target_coords, method='mean', tolerance=None, skipna=None, keep_attrs=False,
-               keep_ori_dims_order=True, **agg_method_kwargs):
+               keep_ori_dims_order=True, keep_ori_coords=True, **agg_method_kwargs):
         """
         Regrid coordinates of a dataset (or a data array). Coordinates are assumed to be a center of a grid cell.
         Coarser grids are obtained from regular aggregation; to this end, both the initial and target grids must
@@ -54,6 +54,7 @@ class regrid:
         to the new one. If False (default), the new object will be returned without attributes.
         :param keep_ori_dims_order: if True, keep the dataset/dataarray original order of dimensions;
         if False, impose the dimensions order as the order of targer_coords dict.
+        :param keep_ori_coords: if True, keep the dataset/dataarray original coordinate variables (as auxiliary coordinates), otherwise drop them
         :param agg_method_kwargs: keyword arguments passed to an aggregation method; see
         http://xarray.pydata.org/en/stable/generated/xarray.core.rolling.DatasetCoarsen.html#xarray.core.rolling.DatasetCoarsen
         :return: same type as ds
@@ -125,4 +126,9 @@ class regrid:
             # overwrite coordinates
             regridded_ds = regridded_ds.assign_coords({r_dim: target_coords[r_dim]
                                                        for r_dim in set(regridded_ds.dims).intersection(target_coords)})
+        # drop the dataset/dataaray original coordinate variables which became auxiliary coordinates after regridding
+        if not keep_ori_coords:
+            ori_coords_became_aux_coords = [coord for coord in regridded_ds.coords
+                                            if coord in target_coords and coord not in regridded_ds.dims]
+            regridded_ds = regridded_ds.reset_coords(ori_coords_became_aux_coords, drop=True)
         return regridded_ds

@@ -92,7 +92,7 @@ class geo_regrid:
 
         # do regridding
         ds = ds.regrid.regrid({lon_label: longitude, lat_label: latitude}, method=method, tolerance=tolerance,
-                              skipna=skipna, keep_attrs=keep_attrs, **agg_method_kwargs)
+                              skipna=skipna, keep_attrs=keep_attrs, keep_ori_coords=False, **agg_method_kwargs)
 
         # re-establish longitude coordinate which overlaps mod 360
         if longitude_circular and longitude_ori is not None:
