@@ -28,18 +28,48 @@ class xrx:
             ds_repr = str(ds)
         return ds_repr
 
-    def dropna_and_flatten(self):
-        da = self._obj
+    def dropna_and_flatten(self, how='all', subset=None):
+        """
+        Flatten to a 1-dim DataArray or Dataset (indexed by 'idx') and drop NaN's. Dimensional coordinates become
+        non-dimensional coordinates indexed by 'idx'.
+        :param how: str; if 'all' then drop an index if all variables are NaN;
+        if 'any' then drop an index if any of the variables is NaN; has no effect if self is a DataArray
+        :param subset: str or list of str; in case self is a Dataset, restrict checking for NaN's to this subset of variables
+        :return: same type as self
+        """
+        ds = self._obj
+        if subset is not None:
+            if not isinstance(subset, (list, tuple)):
+                subset = [subset]
+
         # alternative method for many variables:
         # ds.where(ds[v] > 0).to_dataframe().dropna(how='all', subset=list(ds)).reset_index()
-        if not isinstance(da, xr.DataArray):
-            raise TypeError(f'da must be an xarray.DataArray; got {type(da)}')
+        # if not isinstance(da, xr.DataArray):
+        #     raise TypeError(f'da must be an xarray.DataArray; got {type(da)}')
         # TODO: make it lazy (values -> data);
-        # but then a lack of explicit sizes of idxs is a problem when constructing an xarray Dataset
-        idxs = np.nonzero(da.notnull().values)
+        #  but then a lack of explicit sizes of idxs is a problem when constructing an xarray Dataset
+        ds_notnull = ds.notnull()
+        da_notnull = None
+        if not isinstance(ds_notnull, xr.Dataset):
+            da_notnull = ds_notnull
+        else:
+            if subset is not None:
+                ds_notnull = ds_notnull[subset]
+            for da in ds_notnull.values():
+                if da_notnull is None:
+                    da_notnull = da
+                else:
+                    if how == 'all':
+                        da_notnull = da_notnull & da
+                    elif how == 'any':
+                        da_notnull = da_notnull | da
+                    else:
+                        raise ValueError(f'how must be all or any; got how={how}')
+
+        idxs = np.nonzero(da_notnull.values)
         idxs = (('idx', idx) for idx in idxs)
-        idxs = xr.Dataset(dict(zip(da.dims, idxs)))
-        return da.isel(idxs)
+        idxs = xr.Dataset(dict(zip(da_notnull.dims, idxs)))
+        return ds.isel(idxs)
 
     def make_coordinates_increasing(self, coord_labels, allow_sorting=True):
         """
