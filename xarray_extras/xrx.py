@@ -1,3 +1,4 @@
+import warnings
 import numpy as np
 import xarray as xr
 import pathlib
@@ -112,31 +113,75 @@ class xrx:
         return ds
 
 
-def open_dataset_from_netcdf_with_disk_chunks(url, chunks='auto', **kwargs):
+def get_dataset_dims_chunks_sizes_itemsize(url):
+    with xr.open_dataset(url) as ds:
+        chunks_by_v = {}
+        sizes_by_v = {}
+        itemsize_by_v = {}
+        dims = dict(ds.dims)
+        vs = list(ds.data_vars) + list(ds.coords)
+        for v in vs:
+            if v not in dims:
+                da = ds[v]
+                v_dims = da.sizes
+                sizes_by_v[v] = dict(v_dims)
+                itemsize_by_v[v] = da.dtype.itemsize
+                v_chunks = da.encoding.get('chunksizes')
+                if v_chunks is not None:
+                    if len(v_dims) == len(v_chunks):
+                        chunks_by_v[v] = dict(zip(v_dims, v_chunks))
+                    else:
+                        logger().warning(f'variable {v}: sizes={v_dims}, chunks={v_chunks}; '
+                                         f'ignoring the chunks specification for this variable')
+    return dims, chunks_by_v, sizes_by_v, itemsize_by_v
+
+
+def open_dataset_from_netcdf_with_disk_chunks(url, chunks='auto', max_chunk_size=None, **kwargs):
     """
     Open a dataset from a netCDF file using on disk chunking. The parameter 'chunks' mimics xarray.open_zarr behaviour.
     :param url: str; path to a netCDF file.
     :param chunks: 'auto' or dict or None; default 'auto'. If 'auto', open with chunks on disk; if a dictionary is given,
     it must map dimensions into chunks sizes (size -1 means the whole dimension length); the dictionary updates chunk
     sizes found in the file; if None, open without chunking.
+    :param max_chunk_size: int; when chunks is 'auto', determines chunking coarser than disk chunking
     :param kwargs: extra keyword arguments passed to xarray.open_dataset
     :return: xarray Dataset
     """
     if chunks is not None:
-        with xr.open_dataset(url) as ds:
-            chunks_by_dim = {}
-            dims = ds.dims
-            for v in list(ds.data_vars) + list(ds.coords):
+        dims, chunks_by_v, sizes_by_v, itemsize_by_v = get_dataset_dims_chunks_sizes_itemsize(url)
+        vs = list(sizes_by_v)
+
+        chunks_by_dim = {d: {} for d in dims}
+        for v, chunks_for_v in chunks_by_v.items():
+            for d, chunk_for_v in chunks_for_v.items():
+                chunks_by_dim[d][v] = chunk_for_v
+
+        if chunks == 'auto' and max_chunk_size is not None:
+            # possibly coarsen chunks_by_dim so that max_chunk_size is satisfied
+            chunks_by_v = {}
+            for v in vs:
                 if v not in dims:
-                    v_dims = ds[v].sizes
-                    v_chunks = ds[v].encoding.get('chunksizes')
-                    if v_chunks is not None:
-                        if len(v_dims) == len(v_chunks):
-                            for dim, chunk in zip(v_dims, v_chunks):
-                                chunks_by_dim.setdefault(dim, {})[v] = chunk
-                        else:
-                            logger().warning(f'variable {v}: sizes={v_dims}, chunks={v_chunks}; '
-                                             f'ignoring the chunks specification for this variable')
+                    chunks_by_v[v] = dict(sizes_by_v[v])
+                    chunks_by_v[v].update(
+                        {
+                            d: chunks_for_d[v]
+                            for d, chunks_for_d in chunks_by_dim.items()
+                            if v in chunks_for_d
+                        }
+                    )
+
+            for v, chunks_by_dim_for_v in chunks_by_v.items():
+                v_dims = sizes_by_v[v]
+                v_itemsize = itemsize_by_v[v]
+                for d, size in reversed(list(v_dims.items())):
+                    chunk_size = np.prod(list(chunks_by_dim_for_v.values())) * v_itemsize
+                    mul = max_chunk_size / chunk_size
+                    if size / chunks_by_dim_for_v[d] <= mul:
+                        chunks_by_dim_for_v[d] = size
+                    elif mul >= 2:
+                        chunks_by_dim_for_v[d] = min(chunks_by_dim_for_v[d] * int(mul), size)
+                    chunks_by_dim[d][v] = chunks_by_dim_for_v[d]
+
         chunk_by_dim = {}
         for d, chunks_by_var in chunks_by_dim.items():
             chunk = min(chunks_by_var.values())
@@ -144,6 +189,7 @@ def open_dataset_from_netcdf_with_disk_chunks(url, chunks='auto', **kwargs):
                 chunk_by_dim[d] = chunk
         if chunks != 'auto':
             chunk_by_dim.update(chunks)
+
         if all(chunk_by_dim[d] in (dims[d], -1) for d in chunk_by_dim):
             chunk_by_dim = None
         ds = xr.open_dataset(url, chunks=chunk_by_dim, **kwargs)
@@ -152,21 +198,25 @@ def open_dataset_from_netcdf_with_disk_chunks(url, chunks='auto', **kwargs):
     return ds
 
 
-def open_dataset_with_disk_chunks(url, chunks='auto', **kwargs):
+def open_dataset_with_disk_chunks(url, chunks='auto', max_chunk_size=None, **kwargs):
     """
     Open a dataset from a netCDF or zarr file using on disk chunking.
     The parameter 'chunks' mimics xarray.open_zarr behaviour.
     :param url: str; path to a netCDF or zarr file.
-    :param chunks: 'auto' or dict or None; default 'auto'. If 'auto', open with chunks on disk; if a dictionary is given,
-    it must map dimensions into chunks sizes (size -1 means the whole dimension length); the dictionary updates chunk
-    sizes found in the file; if None, open without chunking.
+    :param chunks: 'auto' or dict or None; default 'auto'. If 'auto', open with chunks on disk, or coarser,
+    if max_chunk_size is given (see below); if a dictionary is given, it must map dimensions into chunks sizes
+    (size -1 means the whole dimension length); the dictionary updates chunk sizes found in the file;
+    if None, open without chunking.
+    :param max_chunk_size: int; when chunks is 'auto', determines chunking coarser than disk chunking
     :param kwargs: extra keyword arguments passed to xarray.open_dataset
     :return: xarray Dataset
     """
     fmt = pathlib.PurePath(url).suffix
     if fmt == '.nc':
-        return open_dataset_from_netcdf_with_disk_chunks(url, chunks=chunks, **kwargs)
+        return open_dataset_from_netcdf_with_disk_chunks(url, chunks=chunks, max_chunk_size=max_chunk_size, **kwargs)
     elif fmt == '.zarr':
+        if max_chunk_size is not None:
+            warnings.warn('max_chunk_size is not supported for zarr and thus ignored', UserWarning)
         return xr.open_zarr(url, chunks=chunks, **kwargs)
     else:
         raise ValueError(f'unknown format: {fmt}; must be .nc or .zarr')

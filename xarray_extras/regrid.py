@@ -106,7 +106,9 @@ class regrid:
                                      f'{len(ds[coord_label])} must be a multiple of {len(target_coord)}\n'
                                      f'ds[{coord_label}] = {ds[coord_label]}\n'
                                      f'target_coord = {target_coord}')
-                window_size[coord_label] = len(ds[coord_label]) // len(target_coord)
+                window_size_for_coord = len(ds[coord_label]) // len(target_coord)
+                if window_size_for_coord > 1:
+                    window_size[coord_label] = window_size_for_coord
             coarsen_ds = ds.coarsen(dim=window_size, boundary='exact', coord_func='mean')
             coarsen_ds_agg_method = getattr(coarsen_ds, method)
             if skipna is not None:
@@ -116,6 +118,9 @@ class regrid:
             regridded_ds = coarsen_ds_agg_method(**agg_method_kwargs)
 
             # adjust coordinates of regridded_ds so that they fit to target_coords
+            # necessary to map existing coordinates to new coordinates (e.g. x_=x, etc),
+            # or to rearrange increasing coords to decreasing (or vice-versa)
+            # and if it has no essential effect, it is a cheap operation
             try:
                 regridded_ds = regridded_ds.sel(target_coords, method='nearest', tolerance=tolerance)
             except KeyError:
