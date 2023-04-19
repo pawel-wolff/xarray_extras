@@ -1,5 +1,6 @@
 import warnings
 import numpy as np
+import pandas as pd
 import xarray as xr
 import pathlib
 
@@ -220,3 +221,18 @@ def open_dataset_with_disk_chunks(url, chunks='auto', max_chunk_size=None, **kwa
         return xr.open_zarr(url, chunks=chunks, **kwargs)
     else:
         raise ValueError(f'unknown format: {fmt}; must be .nc or .zarr')
+
+
+def concat_from_nested_dict(dict_of_ds, dims, **concat_kwargs):
+    if len(dims) == 0:
+        return dict_of_ds
+    dim, *other_dims = dims
+    dict_of_ds_items = list(dict_of_ds.items())
+    if len(dict_of_ds_items) == 0:
+        raise ValueError(f'a (nested) dictionary for dim={dim} cannot be empty')
+    coords, nested_dicts_of_ds = zip(*dict_of_ds.items())
+    dss = [
+        concat_from_nested_dict(nested_dict_of_ds, other_dims, **concat_kwargs)
+        for nested_dict_of_ds in nested_dicts_of_ds
+    ]
+    return xr.concat(dss, dim=pd.Index(coords, name=dim), **concat_kwargs)
