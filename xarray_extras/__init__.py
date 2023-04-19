@@ -2,6 +2,7 @@ from .xrx import (
     get_dataset_dims_chunks_sizes_itemsize,
     open_dataset_from_netcdf_with_disk_chunks,
     open_dataset_with_disk_chunks,
+    concat_from_nested_dict,
 )
 
 from . import geo
@@ -17,5 +18,6 @@ __all__ = [
     'get_dataset_dims_chunks_sizes_itemsize',
     'open_dataset_from_netcdf_with_disk_chunks',
     'open_dataset_with_disk_chunks',
+    'concat_from_nested_dict',
     'is_coord_regularly_gridded',
 ]
