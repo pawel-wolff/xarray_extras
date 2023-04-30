@@ -114,8 +114,8 @@ class xrx:
         return ds
 
 
-def get_dataset_dims_chunks_sizes_itemsize(url):
-    with xr.open_dataset(url) as ds:
+def get_dataset_dims_chunks_sizes_itemsize(url, **kwargs):
+    with xr.open_dataset(url, **kwargs) as ds:
         chunks_by_v = {}
         sizes_by_v = {}
         itemsize_by_v = {}
@@ -149,7 +149,7 @@ def open_dataset_from_netcdf_with_disk_chunks(url, chunks='auto', max_chunk_size
     :return: xarray Dataset
     """
     if chunks is not None:
-        dims, chunks_by_v, sizes_by_v, itemsize_by_v = get_dataset_dims_chunks_sizes_itemsize(url)
+        dims, chunks_by_v, sizes_by_v, itemsize_by_v = get_dataset_dims_chunks_sizes_itemsize(url, **kwargs)
         vs = list(sizes_by_v)
 
         chunks_by_dim = {d: {} for d in dims}
