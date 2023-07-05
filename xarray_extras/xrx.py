@@ -157,7 +157,14 @@ def open_dataset_from_netcdf_with_disk_chunks(url, chunks='auto', max_chunk_size
             for d, chunk_for_v in chunks_for_v.items():
                 chunks_by_dim[d][v] = chunk_for_v
 
-        if chunks == 'auto' and max_chunk_size is not None:
+        if isinstance(chunks, dict):
+            for d, chunks_for_dim in chunks_by_dim.items():
+                if d in chunks:
+                    chunk = chunks[d] if chunks[d] == -1 else dims[d]
+                    for v in list(chunks_for_dim):
+                        chunks_for_dim[v] = chunk
+
+        if max_chunk_size is not None:
             # possibly coarsen chunks_by_dim so that max_chunk_size is satisfied
             chunks_by_v = {}
             for v in vs:
@@ -175,21 +182,20 @@ def open_dataset_from_netcdf_with_disk_chunks(url, chunks='auto', max_chunk_size
                 v_dims = sizes_by_v[v]
                 v_itemsize = itemsize_by_v[v]
                 for d, size in reversed(list(v_dims.items())):
-                    chunk_size = np.prod(list(chunks_by_dim_for_v.values())) * v_itemsize
-                    mul = max_chunk_size / chunk_size
-                    if size / chunks_by_dim_for_v[d] <= mul:
-                        chunks_by_dim_for_v[d] = size
-                    elif mul >= 2:
-                        chunks_by_dim_for_v[d] = min(chunks_by_dim_for_v[d] * int(mul), size)
-                    chunks_by_dim[d][v] = chunks_by_dim_for_v[d]
+                    if not isinstance(chunks, dict) or d not in chunks:
+                        chunk_size = np.prod(list(chunks_by_dim_for_v.values())) * v_itemsize
+                        mul = max_chunk_size / chunk_size
+                        if size / chunks_by_dim_for_v[d] <= mul:
+                            chunks_by_dim_for_v[d] = size
+                        elif mul >= 2:
+                            chunks_by_dim_for_v[d] = min(chunks_by_dim_for_v[d] * int(mul), size)
+                        chunks_by_dim[d][v] = chunks_by_dim_for_v[d]
 
         chunk_by_dim = {}
         for d, chunks_by_var in chunks_by_dim.items():
             chunk = min(chunks_by_var.values())
             if chunk < dims[d]:
                 chunk_by_dim[d] = chunk
-        if chunks != 'auto':
-            chunk_by_dim.update(chunks)
 
         if all(chunk_by_dim[d] in (dims[d], -1) for d in chunk_by_dim):
             chunk_by_dim = None
