@@ -160,7 +160,7 @@ def open_dataset_from_netcdf_with_disk_chunks(url, chunks='auto', max_chunk_size
         if isinstance(chunks, dict):
             for d, chunks_for_dim in chunks_by_dim.items():
                 if d in chunks:
-                    chunk = chunks[d] if chunks[d] == -1 else dims[d]
+                    chunk = chunks[d] if chunks[d] != -1 else dims[d]
                     for v in list(chunks_for_dim):
                         chunks_for_dim[v] = chunk
 
