@@ -131,7 +131,7 @@ class xrx:
             coords_df = simple_idx_unique.reset_index().set_index(sample_idx_name)
             return simple_idx, coords_df
 
-        ds = self
+        ds = self._obj
         assert len(dict_of_lists_of_coords) >= 1
         coords_by_label = {}
         dims_to_convert_to_multi_idx = []
