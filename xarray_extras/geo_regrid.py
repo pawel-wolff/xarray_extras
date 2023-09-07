@@ -1,8 +1,6 @@
 import numpy as np
 import xarray as xr
 
-from common.log import logger
-
 
 @xr.register_dataset_accessor('geo_regrid')
 @xr.register_dataarray_accessor('geo_regrid')
@@ -57,7 +55,7 @@ class geo_regrid:
             ds_lon_delta = abs(ds_lon[1] - ds_lon[0])
             longitude_circular = bool(abs(ds_lon_span - 360.) <= 8. * 360. * eps or
                                       abs(ds_lon_span + ds_lon_delta - 360.) <= 8. * 360. * eps)
-            logger().debug(f'longitude_circular={longitude_circular} for ds={ds.xrx.short_dataset_repr()}')
+            # print(f'longitude_circular={longitude_circular} for ds={ds.xrx.short_dataset_repr()}')  # DEBUG INFO
 
         # handle overlapping target longitude coordinates if necessary
         longitude_ori = None

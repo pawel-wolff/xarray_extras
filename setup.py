@@ -16,6 +16,5 @@ setup(
         'pandas',
         'xarray>=0.19',
         'dask',
-        'common',
     ],
 )

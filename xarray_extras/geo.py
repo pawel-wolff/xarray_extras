@@ -1,5 +1,8 @@
 import xarray as xr
-import common.longitude
+
+
+def _normalize_longitude_ufunc(arr, smallest_lon_coord=-180.):
+    return (arr - smallest_lon_coord) % 360. + smallest_lon_coord
 
 
 @xr.register_dataset_accessor('geo')
@@ -39,7 +42,7 @@ class geo:
         if lon_label is None:
             lon_label = ds.geo.get_lon_label()
         lon_coords = ds[lon_label]
-        aligned_lon_coords = common.longitude.normalize_longitude(lon_coords, smallest_lon_coord=smallest_lon_coord)
+        aligned_lon_coords = _normalize_longitude_ufunc(lon_coords, smallest_lon_coord=smallest_lon_coord)
         if keep_attrs:
             aligned_lon_coords = aligned_lon_coords.assign_attrs(lon_coords.attrs)
 

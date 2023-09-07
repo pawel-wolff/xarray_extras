@@ -4,8 +4,6 @@ import pandas as pd
 import xarray as xr
 import pathlib
 
-from common.log import logger
-
 
 @xr.register_dataset_accessor('xrx')
 @xr.register_dataarray_accessor('xrx')
@@ -113,6 +111,56 @@ class xrx:
             ds = ds.assign_coords(dummy_coords_by_dim)
         return ds
 
+    # TODO: test if it works for DataArray
+    def flexible_unstack(self, dim, dict_of_lists_of_coords):
+        """
+        Example of usage: flexible_unstack(ds, '__composed_idx', {'flight_id_and_airport_code': ['idx', 'airport_code'], 'air_press_AC_binned': None})
+        :param ds:
+        :param dim:
+        :param dict_of_lists_of_coords:
+        :return:
+        """
+        def _multi_idx_to_simple_idx(multi_idx, sample_idx_name):
+            multi_idx_unique = multi_idx.unique()
+            simple_idx_unique = pd.Series(
+                np.arange(len(multi_idx_unique)),
+                index=multi_idx_unique,
+                name=sample_idx_name
+            )
+            simple_idx = simple_idx_unique.loc[multi_idx].values
+            coords_df = simple_idx_unique.reset_index().set_index(sample_idx_name)
+            return simple_idx, coords_df
+
+        ds = self
+        assert len(dict_of_lists_of_coords) >= 1
+        coords_by_label = {}
+        dims_to_convert_to_multi_idx = []
+        for new_dim, list_of_coords in dict_of_lists_of_coords.items():
+            if not list_of_coords or len(list_of_coords) == 1 and list_of_coords[0] == new_dim:
+                continue
+            elif len(list_of_coords) == 1 and list_of_coords[0] != new_dim:
+                raise NotImplementedError
+            elif len(list_of_coords) >= 2:
+                multi_idx = pd.MultiIndex.from_arrays([ds[c].values for c in list_of_coords], names=list_of_coords)
+                simple_idx, _coord_df = _multi_idx_to_simple_idx(multi_idx, new_dim)
+                coords_by_label.update(dict(_coord_df))
+                ds = ds.reset_coords(names=list_of_coords, drop=True).assign_coords({new_dim: (dim, simple_idx)})
+                dims_to_convert_to_multi_idx.append(new_dim)
+            else:
+                raise RuntimeError
+        new_dims = list(dict_of_lists_of_coords)
+        compound_idx = pd.MultiIndex.from_arrays([ds[new_dim].values for new_dim in new_dims], names=new_dims)
+        ds = ds. \
+            reset_coords(names=new_dims, drop=True). \
+            assign_coords({dim: compound_idx}). \
+            unstack(dim). \
+            assign_coords(coords_by_label)
+        for new_dim in dims_to_convert_to_multi_idx:
+            list_of_coords = dict_of_lists_of_coords[new_dim]
+            multi_idx = pd.MultiIndex.from_arrays([ds[c].values for c in list_of_coords], names=list_of_coords)
+            ds = ds.assign_coords({new_dim: multi_idx})
+        return ds
+
 
 def get_dataset_dims_chunks_sizes_itemsize(url, **kwargs):
     with xr.open_dataset(url, **kwargs) as ds:
@@ -132,8 +180,10 @@ def get_dataset_dims_chunks_sizes_itemsize(url, **kwargs):
                     if len(v_dims) == len(v_chunks):
                         chunks_by_v[v] = dict(zip(v_dims, v_chunks))
                     else:
-                        logger().warning(f'variable {v}: sizes={v_dims}, chunks={v_chunks}; '
-                                         f'ignoring the chunks specification for this variable')
+                        warnings.warn(
+                            f'variable {v}: sizes={v_dims}, chunks={v_chunks}; '
+                            f'ignoring the chunks specification for this variable'
+                        )
     return dims, chunks_by_v, sizes_by_v, itemsize_by_v
 
 
@@ -223,7 +273,7 @@ def open_dataset_with_disk_chunks(url, chunks='auto', max_chunk_size=None, **kwa
         return open_dataset_from_netcdf_with_disk_chunks(url, chunks=chunks, max_chunk_size=max_chunk_size, **kwargs)
     elif fmt == '.zarr':
         if max_chunk_size is not None:
-            warnings.warn('max_chunk_size is not supported for zarr and thus ignored', UserWarning)
+            warnings.warn('max_chunk_size is not supported for zarr and thus ignored')
         return xr.open_zarr(url, chunks=chunks, **kwargs)
     else:
         raise ValueError(f'unknown format: {fmt}; must be .nc or .zarr')
