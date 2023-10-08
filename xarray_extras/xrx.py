@@ -11,6 +11,12 @@ class xrx:
     def __init__(self, xarray_obj):
         self._obj = xarray_obj
 
+    def iterate(self, dim, drop=False):
+        ds = self._obj
+        assert dim in ds.dims, f'{dim} is not a dimension'
+        for i, coord in enumerate(ds[dim].values):
+            yield coord, ds.isel({dim: i}, drop=drop)
+
     def short_dataset_repr(self):
         ds = self._obj
         if isinstance(ds, xr.Dataset):
