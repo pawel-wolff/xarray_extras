@@ -127,7 +127,7 @@ class regrid:
                 raise ValueError(f"target grid is not compatible with a source grid; "
                                  f"check grids or adjust 'tolerance' parameter\n"
                                  f"regridded_ds={regridded_ds}\n"
-                                 f"target_coords={target_coord}")
+                                 f"target_coords={target_coords}")
             # overwrite coordinates
             regridded_ds = regridded_ds.assign_coords({r_dim: target_coords[r_dim]
                                                        for r_dim in set(regridded_ds.dims).intersection(target_coords)})

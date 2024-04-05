@@ -173,7 +173,7 @@ def get_dataset_dims_chunks_sizes_itemsize(url, **kwargs):
         chunks_by_v = {}
         sizes_by_v = {}
         itemsize_by_v = {}
-        dims = dict(ds.dims)
+        dims = dict(ds.sizes)
         vs = list(ds.data_vars) + list(ds.coords)
         for v in vs:
             if v not in dims:
